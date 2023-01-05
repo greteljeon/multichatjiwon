@@ -18,23 +18,24 @@ import java.util.Scanner;
 public class ChatClient {
 //	private static final int READ_BUFFER_SIZE = Integer.getInteger("readBufferSize", 8192);
 	private static final int READ_BUFFER_SIZE = Integer.getInteger("readBufferSize", 100);
-	private static final String DEFAULT_FILE_PATH = "./WebContent/WEB-INF/lib/";
-	private static final String DEFAULT_FILE_PATH2 = "/home/jeon/eclipse-workspace/ProjectMultiChat/WebContent/WEB-INF/lib/";
-//	private static final String DEFAULT_FILE_PATH = "D:\\dev\\workspace\\MultiChat\\src\\main\\webapp\\WEB-INF\\lib\\";
-//	private static final String DEFAULT_FILE_PATH2 = "D:\\dev\\workspace\\MultiChat\\src\\main\\webapp\\WEB-INF\\lib\\";
+//	private static final String DEFAULT_FILE_PATH = "./WebContent/WEB-INF/lib/";
+//	private static final String DEFAULT_FILE_PATH2 = "/home/jeon/eclipse-workspace/ProjectMultiChat/WebContent/WEB-INF/lib/";
+	private static final String DEFAULT_FILE_PATH = "D:\\dev\\workspace\\MultiChat\\src\\main\\webapp\\WEB-INF\\lib\\";
+	private static final String DEFAULT_FILE_PATH2 = "D:\\dev\\workspace\\MultiChat\\src\\main\\webapp\\WEB-INF\\lib\\";
 
 
 	private static Socket socket;
+	private static Thread thread;
 	private static final short MESSAGE_TYPE_REGISTER = 1;
 	private static final short MESSAGE_TYPE_REGISTER_REPLY = 2;
 	private static final short MESSAGE_TYPE_TEXT = 3;
 	private static final short MESSAGE_TYPE_FILE = 4;
-//	private static final short MESSAGE_TYPE_BYE = 5;
 	
-	private static List<Object> getAddress() { // 연결 주소 입력
+	// 연결할 서버 주소 입력
+	private static List<Object> getAddress() { 
 		Scanner sc = new Scanner(System.in);
 		String address = sc.nextLine();
-		String ip = "";
+		String ip = null;
 		int port = 0;
 		try {
 			if (address == null || address.length() < 4) {
@@ -42,7 +43,7 @@ public class ChatClient {
 				ip = ip.substring(ip.indexOf("/") + 1);
 				port = 9900;
 			} else {
-				ip = address.substring(0, address.indexOf("/")); // 127.0.1.1
+				ip = address.substring(0, address.indexOf("/")); 
 				port = Integer.parseInt(address.substring(address.indexOf("/") + 1, address.length()));
 			}
 			System.out.println("[server ip]: " + ip + "[server port]: " + port);
@@ -53,7 +54,6 @@ public class ChatClient {
 		List<Object> list = new ArrayList<Object>();
 		list.add(ip);
 		list.add(port);
-//		sc.close();
 
 		return list;
 	}
@@ -63,66 +63,100 @@ public class ChatClient {
 		int port;
 		System.out.println("[ip/port 입력]");
 		try {
-			List<Object> list = getAddress(); // ip, port 입력 받기
+			// 서버 연결할 ip, port 입력 받기
+			List<Object> list = getAddress(); 
 			ip = (String) list.get(0);
 			port = (int) list.get(1);
 			new ChatClient(ip, port);
+			
 		} catch (Exception e) {
 			e.printStackTrace();
-			stopClient();
 		}
+		if(socket.isClosed())
+			System.out.println("[서버와 연결이 종료됩니다.]");
 	}
 
-	public static void stopClient() {
+	public static void stopClient(Socket socket) {
 		try {
-			System.out.println("[연결 끊음]");
+			if(!Thread.interrupted()) {
+				Thread.currentThread().interrupt();
+			}
 			if (socket != null && !socket.isClosed()) {
 				socket.close();
 			}
-		} catch (IOException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
-	} // stopClient()
+	} 
 
-	public ChatClient(String ip, int port) {
+	public ChatClient(String ip, int port) throws IOException {
 		startClient(ip, port);
 	}
 
-	// ip&port 주소 입력
-	private void startClient(String ip, int port) { // connect server
+	// 서버 연결(ip와 포트 주소 입력)과 채팅 준비
+	private void startClient(String ip, int port) throws IOException { // connect server
+		// 대화명 입력
 		Scanner sc = new Scanner(System.in);
-		try {
-			System.out.println("<대화명 입력>");
-			String id = sc.nextLine();
-			System.out.println("id: " + id);
+		System.out.println("<대화명 입력>");
+		String id = sc.nextLine();
 
-			socket = new Socket(ip, port);
-			System.out.println("*--client connection success--*");
-			System.out.println("[연결 완료" + socket.getRemoteSocketAddress() + "]");
+		// 서버와 소켓 연결
+		socket = new Socket(ip, port);
+		System.out.println("*--client connection success--*");
+		System.out.println("[서버와 연결 " + socket.getRemoteSocketAddress() + "]");
 
-			send(MESSAGE_TYPE_REGISTER, id); // ID 등록(register)
+		// ID 보내기
+		send(MESSAGE_TYPE_REGISTER, id);
 
-			ListeningThread lt = new ListeningThread(socket); // read 스레드
-			Thread thread = new Thread(lt);
-			thread.start();
+		// 리스닝스레드 생성 및 시작
+		ListeningThread listeningThread = new ListeningThread(socket); // read 스레드
+		Thread thread = new Thread(listeningThread);
+		thread.start();
 
-			sendProtocol();
-		} catch (Exception e) {
-			System.out.println("[서버통신안됨]");
-			e.printStackTrace();
-			stopClient();
-		}
-		sc.close();
-	}// startClient()
+		// 채팅 프로토콜 시작
+		sendProtocol();
+	}
 
+	// send 프로토콜
+	void sendProtocol() throws IOException {
+		Scanner sc = new Scanner(System.in);
+		System.out.println("-------------------------");
+		System.out.println("File을 보내고 싶으면 'FILE' 입력");
+		System.out.println("채팅 종료하고 싶으면 'EXIT' 입력");
+		System.out.println("-------------------------");
+		
+		while (true) {
+			String chatMessage = null;
+			
+			if(sc.hasNext()) {
+				chatMessage = sc.nextLine();
+			}
+			// 파일 입력
+			if (chatMessage.equalsIgnoreCase("FILE")) {
+				System.out.println("파일명 입력▼");
+				String fileName = sc.nextLine();
+				sendFile(MESSAGE_TYPE_FILE, fileName);
+			// 채팅 종료
+			}else if(chatMessage.equalsIgnoreCase("EXIT")){
+				break;
+			}else {
+			// 일반 채팅
+				send(MESSAGE_TYPE_TEXT, chatMessage);	
+			}
+		} 
+		stopClient(socket);
+	} 
+	
+	// 보내기
 	void send(Short type, String data) throws IOException {
 		int dataLen = data.getBytes().length;
 
+		//데이터 사이즈와 프로토콜 타입 입력(2+2 = 4bytes)
 		byte[] dataLengthArray = shortToByteArray((short) dataLen);
 		byte[] typeArray = shortToByteArray(type);
 
 		if (dataLen > 32767) {
-			System.out.println("data length가 short보다 큼");
+			//System.out.println("data length가 short보다 큼");
 			return;
 		}
 		byte[] sendByteArray = new byte[4 + dataLen];
@@ -134,22 +168,19 @@ public class ChatClient {
 		outputStream.write(sendByteArray);
 
 		outputStream.flush();
-		System.out.println("[전송 완료]");
 	} // send()
 
 	// 파일 보내는 순서
 	void sendFile(Short type, String fileName) throws IOException {
 		File file = new File(DEFAULT_FILE_PATH + fileName); // 보낼 파일
 		if (!file.exists()) {
-			System.out.println("파일 없음");
+			System.out.println("해당 파일 없음");
 			return;
 		}
-		System.out.println("file exist");
 		FileInputStream fileInputStream = new FileInputStream(file);
 		OutputStream outputStream = socket.getOutputStream();
 
 		long fileLen = file.length();
-		System.out.println("fileLen: " + fileLen);
 		
 		byte[] readBuffer = new byte[READ_BUFFER_SIZE];
 		byte[] dataLengthArray = shortToByteArray((short) fileLen); // 파일사이즈
@@ -171,37 +202,7 @@ public class ChatClient {
 		System.out.println("[전송 완료]");
 	} // send()
 
-	void sendProtocol() throws IOException {
-		Scanner sc = new Scanner(System.in);
-		
-		System.out.println("-------------------------");
-		System.out.println("File을 보내고 싶으면 'FILE' 입력");
-		System.out.println("채팅 종료하고 싶으면 'EXIT' 입력");
-		System.out.println("-------------------------");
-		
-		while (true) {
-			String chatMessage = null;
-			
-			if(sc.hasNext()) {
-				chatMessage = sc.nextLine();
-			}
-			System.out.println("chatMessage1: "+chatMessage);
-//			if(chatMessage==null) {
-//				System.out.println("hi");
-//				break;
-//			}
-			if (chatMessage.equalsIgnoreCase("FILE")) {
-				System.out.println("파일 주소 입력(파일명)▼");
-				String fileName = sc.nextLine();
-				sendFile(MESSAGE_TYPE_FILE, fileName);
-			}else if(chatMessage.equalsIgnoreCase("EXIT")){
-				System.out.println("채팅 종료");
-				break;
-			}else {
-				send(MESSAGE_TYPE_TEXT, chatMessage);	
-			}
-		} 
-	} 
+	
 
 	// short --> Byte
 	public byte[] shortToByteArray(short length) {
@@ -219,7 +220,6 @@ public class ChatClient {
 		} else {
 			fileContent = new byte[(int)fileSize];
 		}
-//		System.out.println("fileContent: "+fileContent.length);
 		return fileContent;
 	}
 
@@ -233,107 +233,96 @@ public class ChatClient {
 
 		@Override
 		public void run() {
-			System.out.println("수신 준비");
 			try {
 				while (true) {
 					receiveProtocol();
-				}
+					if(Thread.interrupted()) {
+		                break;
+		            }
+				} 
 			} catch (Exception e) {
 				e.printStackTrace();
 				System.out.println("Client run() IOException");
 			} finally {
-				stopClient();
 				System.out.println("end");
 			}
 		}
 		private int readUShort(byte[] readHeaderByte, int offset) {
 	        int ch1 = readHeaderByte[offset] & 0xff;
 	        int ch2 = readHeaderByte[offset + 1] & 0xff;
-//	        return (short) ((ch1 << 8) + ch2);
 	        return ((ch1 << 8) + ch2);
 	    }
 		
-		// 받기
-		private void receiveProtocol() throws IOException {
-//			System.out.println("**receiveProtocol**");
-			InputStream inputStream = socket.getInputStream();
-
-			int readBytes = 0;
-			byte[] readHeaderByte = new byte[4]; 
-			while(readBytes < 4) {
-				readBytes = inputStream.read(readHeaderByte);
-			}
-			int dataSize = readUShort(readHeaderByte, 0);
-			int dataType = readUShort(readHeaderByte, 2);
-			
-//			System.out.println("**dataSize: "+dataSize);
-//			System.out.println("**dataType: "+dataType);
-			
-			byte[] messageByte = allocateBuffer(dataSize);
-			byte[] idBytes = null;
-			int offset = 0;
-			if (dataType == MESSAGE_TYPE_TEXT) {
-				// 메시지 읽기
-				messageByte = readFull(inputStream, messageByte, 0, dataSize);
-
-				if (inputStream.available() > 0) {
-					idBytes = new byte[inputStream.available()];
-					while (inputStream.available() > 0) { // 보낸 클라이언트ID 담기
-						inputStream.read(idBytes);
-					} // while
+		private void receiveProtocol() {
+			try {
+				InputStream inputStream = socket.getInputStream();
+	
+				int readBytes = 0;
+				byte[] readHeaderByte = new byte[4]; 
+				while(readBytes < 4) {
+					readBytes = inputStream.read(readHeaderByte);
+					if(readBytes == -1) {
+						return;
+					}
 				}
-				String sendId = new String(idBytes, "UTF-8");
-				receive(sendId, messageByte);
+				int dataSize = readUShort(readHeaderByte, 0);
+				int dataType = readUShort(readHeaderByte, 2);
 				
-			} else if (dataType == MESSAGE_TYPE_FILE) {
-				messageByte = new byte[dataSize];
-				messageByte = readFull(inputStream, messageByte, offset, messageByte.length);
-				
-				receiveFile(messageByte);
+				byte[] messageByte = allocateBuffer(dataSize);
+				byte[] idBytes = null;
+				int offset = 0;
+				if (dataType == MESSAGE_TYPE_TEXT) {
+					// 메시지 읽기
+					messageByte = readFull(inputStream, messageByte, 0, dataSize);
+	
+					if (inputStream.available() > 0) {
+						idBytes = new byte[inputStream.available()];
+						while (inputStream.available() > 0) { // 보낸 클라이언트ID 담기
+							inputStream.read(idBytes);
+						} 
+					}
+					String sendId = new String(idBytes, "UTF-8");
+					receive(sendId, messageByte);
+					
+				} else if (dataType == MESSAGE_TYPE_FILE) {
+					messageByte = new byte[dataSize];
+					messageByte = readFull(inputStream, messageByte, offset, messageByte.length);
+					
+					receiveFile(messageByte);
+				} else if(dataType == MESSAGE_TYPE_REGISTER_REPLY) {
+					System.out.println("server: [대화명 등록 완료]");
+				}
+			}catch (Exception e) {
+				stopClient(socket);
 			}
 		}// listeningthread
 		
 		// 텍스트 수신
 		private void receive(String sendId, byte[] receiveMessageByte) throws IOException {
-//			System.out.println("**receive()**");
-			try {
-				System.out.print(sendId + ": ");
-				String message = new String(receiveMessageByte, StandardCharsets.UTF_8);
-				System.out.println(message);
-			} catch (Exception e) {
-				e.printStackTrace();
-				stopClient();
-			}
+			System.out.print(sendId + ": ");
+			String message = new String(receiveMessageByte, StandardCharsets.UTF_8);
+			System.out.println(message);
 		} // receive()
 
 		// 파일 받기
 		private void receiveFile(byte[] fileContextBytes) {
-			System.out.println("**receiveFile**");
-			Scanner sc = new Scanner(System.in);
-
 			try {
-				//System.out.println("저장되는 파일명▼");
-//				newFileName = sc.nextLine();
 				Random random = new Random();
 				int num = random.nextInt(1000);
 				String arr = num + ".txt";
 				String newFileName = arr;
-//				System.out.println(newFileName);
 				
 				File file = new File(DEFAULT_FILE_PATH2 + newFileName);
 				FileOutputStream fileOutputStream = new FileOutputStream(file); // 파일 생성
-				System.out.println(newFileName + "파일 생성");
 
 				if (file.exists()) {
-//					System.out.println("파일 작성 시작");
 					fileOutputStream.write(fileContextBytes);
 				}
-				System.out.println("파일 수신 완료");
+				System.out.println(newFileName+ " 파일 수신 완료");
 			} catch (Exception e) {
 				e.printStackTrace();
 				System.out.println("receiveFile fail");
 			}
-			sc.close();
 		}
 
 		private byte[] readFull(InputStream inputStream, byte[] bytes, int offset, int size) throws IOException {

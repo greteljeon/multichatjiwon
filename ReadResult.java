@@ -15,7 +15,6 @@ public class ReadResult {
     private final Result result;
     private int demand;
     private ByteBuffer textBuffer;
-    private ByteBuffer fileBuffer;
     
     public static ReadResult underflow(int demand)
     {
@@ -36,10 +35,10 @@ public class ReadResult {
     	readResult.setTextBuffer(textBuffer);
     	return readResult;
     }
-    public static ReadResult file(ByteBuffer fileBuffer)	
+    public static ReadResult file(ByteBuffer textBuffer)	
     {
     	ReadResult readResult = new ReadResult(Result.FILE);
-    	readResult.setFileBuffer(fileBuffer);
+    	readResult.setTextBuffer(textBuffer);
 		return readResult;
     }
     
@@ -67,13 +66,4 @@ public class ReadResult {
     {
     	return textBuffer;
     }
-
-    public void setFileBuffer(ByteBuffer newFileBuffer) 
-    {
-    	this.fileBuffer = newFileBuffer;
-    }
-	public ByteBuffer getFileBuffer() 
-	{
-		return fileBuffer;
-	}
 }

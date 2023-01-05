@@ -24,11 +24,9 @@ public class User {
 	private static final short MESSAGE_TYPE_REGISTER_REPLY = 2;
 	private static final short MESSAGE_TYPE_TEXT = 3;
 	private static final short MESSAGE_TYPE_FILE = 4;
-	private static final short MESSAGE_TYPE_BYE = 5;
 
 	private final SocketChannel socketChannel;
 	private final Queue<ByteBuffer> writeQueue = new LinkedList<ByteBuffer>();
-	private final Queue<ByteBuffer> fileQueue = new LinkedList<ByteBuffer>();
 	private final AtomicInteger eventOps = new AtomicInteger(0);
 	private String Id;
 	private State state = State.IDLE;
@@ -50,7 +48,7 @@ public class User {
 	public String getId() {
 		return Id;
 	}
-
+	// 소켓 채널 read
 	public int readFromChannel() throws IOException {
 		return socketChannel.read(inputMessageBuffer);
 	}
@@ -65,14 +63,16 @@ public class User {
 		}
 	}
 
+	// 메시지 파싱
+	// underflow 확인, 완전하게 전송되지 않았을 경우 HEADER, BODY를 분기로 다시 read
 	public ReadResult parseMessage() {
 		try {
 			inputMessageBuffer.flip();
-
+			
 			if (state == State.IDLE) {
 				state = State.HEADER;
 			}
-
+			
 			if (state == State.HEADER) {
 				if (inputMessageBuffer.remaining() < HEADER_LENGTH)
 					return ReadResult.underflow(HEADER_LENGTH);
@@ -87,8 +87,8 @@ public class User {
 				if (inputMessageBuffer.remaining() < messageLength) {
 					return ReadResult.underflow(messageLength);
 				}
+				// ID read 프로토콜
 				if (type == MESSAGE_TYPE_REGISTER) {
-					System.out.println("register");
 					byte[] idBytes = new byte[messageLength];
 					inputMessageBuffer.get(idBytes);
 					this.Id = new String(idBytes);
@@ -100,8 +100,8 @@ public class User {
 					resetState();
 
 					return ReadResult.register();
+				// 일반 채팅 read 프로토콜
 				} else if (type == MESSAGE_TYPE_TEXT) {
-					System.out.println("text");
 					byte[] readData = new byte[messageLength];
 					byte[] sendId = getId().getBytes();
 					inputMessageBuffer.get(readData);
@@ -114,10 +114,10 @@ public class User {
 					resetState();
 
 					return ReadResult.text(outputMessageBuffer);
+				// 파일 read 프로토콜
 				} else if (type == MESSAGE_TYPE_FILE) {
-					System.out.println("file");
 					byte[] readData = new byte[messageLength];
-					inputMessageBuffer.get(readData); // 버퍼만큼 받음
+					inputMessageBuffer.get(readData);
 					ByteBuffer outputMessageBuffer = ByteBuffer.allocate(messageLength + 4);
 					
 					outputMessageBuffer.putShort((short)messageLength);
@@ -131,7 +131,6 @@ public class User {
 			}
 		} finally {
 			inputMessageBuffer.compact();
-			System.out.println("**after compact()**");
 		}
 		return null;
 	}
@@ -140,10 +139,7 @@ public class User {
 		writeQueue.add(byteBuffer);
 	}
 
-	public void fileWriteBuffer(ByteBuffer byteBuffer) {
-		writeQueue.add(byteBuffer);
-	}
-
+	// writeQueue
 	public void write() throws IOException {
 		while (!writeQueue.isEmpty()) {
 			ByteBuffer writeBuffer = writeQueue.poll();
@@ -165,7 +161,7 @@ public class User {
 		}
 
 	}
-
+	// 해당 selector의 operation 변경
 	public void registerEvent(Selector selector, int interestOps) throws IOException {
 		int currentOps = this.eventOps.get();
 		if ((currentOps & interestOps) == interestOps)

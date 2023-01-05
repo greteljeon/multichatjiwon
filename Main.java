@@ -12,9 +12,9 @@ public class Main {
 		String address = InetAddress.getLocalHost().toString();
 //		String ip = address.substring(address.indexOf("/") + 1);
 		//port = Integer.parseInt(address.substring(address.indexOf("/") + 1, address.length()));
-		System.out.println(port);
+		System.out.println("현재 포트번호:"+port);
 
 		Server server = new Server(port);
 		server.start();
-}
+	}
 }
