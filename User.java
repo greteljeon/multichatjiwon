@@ -105,6 +105,7 @@ public class User {
 					byte[] readData = new byte[messageLength];
 					byte[] sendId = getId().getBytes();
 					inputMessageBuffer.get(readData);
+					
 					ByteBuffer outputMessageBuffer = ByteBuffer.allocate(DEFAULT_BUFFER_SIZE);
 					outputMessageBuffer.putShort((short) messageLength);
 					outputMessageBuffer.putShort(MESSAGE_TYPE_TEXT);
@@ -118,8 +119,8 @@ public class User {
 				} else if (type == MESSAGE_TYPE_FILE) {
 					byte[] readData = new byte[messageLength];
 					inputMessageBuffer.get(readData);
-					ByteBuffer outputMessageBuffer = ByteBuffer.allocate(messageLength + 4);
 					
+					ByteBuffer outputMessageBuffer = ByteBuffer.allocate(messageLength + 4);
 					outputMessageBuffer.putShort((short)messageLength);
 					outputMessageBuffer.putShort(MESSAGE_TYPE_FILE);
 					outputMessageBuffer.put(readData);
@@ -157,7 +158,7 @@ public class User {
 
 		int newOps = currentOps & ~removeOps;
 		if (eventOps.compareAndSet(currentOps, newOps)) {
-			socketChannel.register(selector, newOps, this);
+			socketChannel.register(selector, newOps, this);	// OP_READ
 		}
 
 	}

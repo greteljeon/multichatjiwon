@@ -18,11 +18,8 @@ import java.util.Scanner;
 public class ChatClient {
 //	private static final int READ_BUFFER_SIZE = Integer.getInteger("readBufferSize", 8192);
 	private static final int READ_BUFFER_SIZE = Integer.getInteger("readBufferSize", 100);
-//	private static final String DEFAULT_FILE_PATH = "./WebContent/WEB-INF/lib/";
-//	private static final String DEFAULT_FILE_PATH2 = "/home/jeon/eclipse-workspace/ProjectMultiChat/WebContent/WEB-INF/lib/";
-	private static final String DEFAULT_FILE_PATH = "D:\\dev\\workspace\\MultiChat\\src\\main\\webapp\\WEB-INF\\lib\\";
-	private static final String DEFAULT_FILE_PATH2 = "D:\\dev\\workspace\\MultiChat\\src\\main\\webapp\\WEB-INF\\lib\\";
-
+	private static final String DEFAULT_FILE_PATH = "./WebContent/WEB-INF/lib/";
+	private static final String DEFAULT_FILE_PATH2 = "C:\\Users\\tmax\\eclipse-workspace\\chatProject\\WebContent\\WEB-INF\\lib\\";
 
 	private static Socket socket;
 	private static Thread thread;
@@ -148,21 +145,20 @@ public class ChatClient {
 	} 
 	
 	// 보내기
-	void send(Short type, String data) throws IOException {
-		int dataLen = data.getBytes().length;
+	void send(Short type, String sendData) throws IOException {
+		int dataLen = sendData.getBytes().length;
 
 		//데이터 사이즈와 프로토콜 타입 입력(2+2 = 4bytes)
 		byte[] dataLengthArray = shortToByteArray((short) dataLen);
 		byte[] typeArray = shortToByteArray(type);
 
 		if (dataLen > 32767) {
-			//System.out.println("data length가 short보다 큼");
 			return;
 		}
 		byte[] sendByteArray = new byte[4 + dataLen];
 		System.arraycopy(dataLengthArray, 0, sendByteArray, 0, 2);
 		System.arraycopy(typeArray, 0, sendByteArray, 2, 2);
-		System.arraycopy(data.getBytes(), 0, sendByteArray, 4, dataLen);
+		System.arraycopy(sendData.getBytes(), 0, sendByteArray, 4, dataLen);
 
 		OutputStream outputStream = socket.getOutputStream();
 		outputStream.write(sendByteArray);
@@ -183,10 +179,10 @@ public class ChatClient {
 		long fileLen = file.length();
 		
 		byte[] readBuffer = new byte[READ_BUFFER_SIZE];
-		byte[] dataLengthArray = shortToByteArray((short) fileLen); // 파일사이즈
+		byte[] fileLengthArray = shortToByteArray((short) fileLen); // 파일사이즈
 		byte[] typeArray = shortToByteArray(type); 					// 메시지 타입
 		
-		outputStream.write(dataLengthArray);
+		outputStream.write(fileLengthArray);
 		outputStream.write(typeArray);
 	
 		int totalRead = 0;
@@ -247,7 +243,7 @@ public class ChatClient {
 				System.out.println("end");
 			}
 		}
-		private int readUShort(byte[] readHeaderByte, int offset) {
+		private int readShort(byte[] readHeaderByte, int offset) {
 	        int ch1 = readHeaderByte[offset] & 0xff;
 	        int ch2 = readHeaderByte[offset + 1] & 0xff;
 	        return ((ch1 << 8) + ch2);
@@ -265,8 +261,8 @@ public class ChatClient {
 						return;
 					}
 				}
-				int dataSize = readUShort(readHeaderByte, 0);
-				int dataType = readUShort(readHeaderByte, 2);
+				int dataSize = readShort(readHeaderByte, 0);
+				int dataType = readShort(readHeaderByte, 2);
 				
 				byte[] messageByte = allocateBuffer(dataSize);
 				byte[] idBytes = null;
@@ -297,7 +293,7 @@ public class ChatClient {
 			}
 		}// listeningthread
 		
-		// 텍스트 수신
+		// 채팅 수신
 		private void receive(String sendId, byte[] receiveMessageByte) throws IOException {
 			System.out.print(sendId + ": ");
 			String message = new String(receiveMessageByte, StandardCharsets.UTF_8);
@@ -318,7 +314,7 @@ public class ChatClient {
 				if (file.exists()) {
 					fileOutputStream.write(fileContextBytes);
 				}
-				System.out.println(newFileName+ " 파일 수신 완료");
+				System.out.println("["+newFileName+ " 파일 저장 완료]");
 			} catch (Exception e) {
 				e.printStackTrace();
 				System.out.println("receiveFile fail");
