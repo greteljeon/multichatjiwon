@@ -33,32 +33,37 @@ public class Server {
 	}
 
 	// 서버 시작
-	public void start() throws IOException 
+	public void start()
 	{
-		while(!closed.get() && !Thread.currentThread().isInterrupted())
-		{	
-			int selectedNum = selector.select();		 // blocking
-			Set<SelectionKey> selectedKeys = selector.selectedKeys();
-			// 이벤트 처리
-			for(SelectionKey selectionKey : selectedKeys)
-			{
-				if(selectionKey.isAcceptable())		//	OP_ACCEPT
+		try {
+			while(!closed.get() && !Thread.currentThread().isInterrupted())
+			{	
+				int selectedNum = selector.select();		 // blocking
+				Set<SelectionKey> selectedKeys = selector.selectedKeys();
+				// 이벤트 처리
+				for(SelectionKey selectionKey : selectedKeys)
 				{
-					System.out.println("**isAcceptable**");
-					accept(selectionKey);
+					if(selectionKey.isAcceptable())		//	OP_ACCEPT
+					{
+						System.out.println("**isAcceptable**");
+						accept(selectionKey);
+					}
+					if(selectionKey.isWritable())	// OP_WRITE
+					{
+						System.out.println("**isWritable**");
+						writeToChannel(selectionKey);
+					}
+					if(selectionKey.isReadable())	// OP_READ
+					{
+						System.out.println("**isReadable**");
+						readAndParse(selectionKey);
+					}
 				}
-				if(selectionKey.isReadable())	// OP_READ
-				{
-					System.out.println("**isReadable**");
-					readAndParse(selectionKey);
-				}
-				if(selectionKey.isWritable())	// OP_WRITE
-				{
-					System.out.println("**isWritable**");
-					writeToChannel(selectionKey);
-				}
+				selectedKeys.clear();
 			}
-			selectedKeys.clear();
+		}catch (Exception e) {
+			e.printStackTrace();
+			System.out.println("[server start() error]");
 		}
 	}// start()
 	public void close()
@@ -156,28 +161,22 @@ public class Server {
 		user.removeEvent(selector, SelectionKey.OP_WRITE);
 	}
 	
-	private void removeClient(SelectionKey selectionKey) {
+	private void removeClient(SelectionKey selectionKey) throws IOException {
 		User user = (User) selectionKey.attachment();
 		String id = user.getId();
 		SocketChannel socketChannel = user.getSocketChannel();
-		selectionKey.cancel();
-		
-		try {
-			if(socketChannel!=null)
+		if(socketChannel!=null)
+		{
+			clientIdToClientMap.remove(user.getId());
+			
+			System.out.println("["+id+"님의 연결이 종료되었습니다.]");
+			System.out.println("현재 채팅방 사용자:");
+			for(String key: clientIdToClientMap.keySet())
 			{
-				clientIdToClientMap.remove(user.getId());
-				
-				System.out.println("["+id+"님의 연결이 종료되었습니다.]");
-				System.out.println("현재 채팅방 사용자:");
-				for(String key: clientIdToClientMap.keySet())
-				{
-					User otherUser = clientIdToClientMap.get(key);
-					System.out.print("["+otherUser.getId() + "] ");
-				}
-				socketChannel.close();
+				User otherUser = clientIdToClientMap.get(key);
+				System.out.print("["+otherUser.getId() + "] ");
 			}
-		} catch (Throwable x) {
-			System.out.println("여기?");
+			socketChannel.close();
 		}
 	}
 	
